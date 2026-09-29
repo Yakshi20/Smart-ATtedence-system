@@ -4,15 +4,19 @@ Ordered. Each item ships with migrations, validation, server-side authorization,
 (including negative authorization tests) and documentation. Nothing is marked done until the
 tests have actually been executed and the output recorded in the PR.
 
-## Slice 0 — Foundation
-- [ ] pnpm workspace, TypeScript strict, ESLint/Prettier, shared tsconfig
-- [ ] `infrastructure/compose.yaml` — Postgres for local and CI
-- [ ] `packages/database`: Drizzle setup, migration runner, per-test-database harness
-- [ ] NestJS API skeleton: config loading, zod validation pipe, exception filter, request IDs, `/health`
-- [ ] CI: lint, typecheck, migrate, test
-- [ ] `.env.example` with placeholders only
+## Slice 0 — Foundation  ✅ complete
+- [x] pnpm workspace, TypeScript strict, ESLint/Prettier, shared tsconfig
+- [x] `infrastructure/compose.yaml` — Postgres for local and CI
+- [x] `packages/database`: Drizzle setup, migration runner, per-test-database harness
+- [x] NestJS API skeleton: config loading, zod validation pipe, exception filter, request IDs, `/health`
+- [x] CI: lint, build, typecheck, migrate (twice), test
+- [x] `.env.example` with placeholders only
 
-**Exit:** `pnpm test` runs green against a real, freshly migrated Postgres, and CI reproduces it.
+**Exit criteria met.** Verified locally against PostgreSQL 16.15: `pnpm lint`,
+`pnpm -r build`, `pnpm typecheck`, `pnpm db:migrate` (idempotent on a second run) and
+`pnpm test` — 42 tests across 7 suites, no orphaned databases left behind.
+CI reproduces the same sequence but has **not yet been observed running** — the workflow
+is committed and unexercised until the first push to GitHub.
 
 ## Slice 1 — Tenancy and identity  *(first vertical slice per `10`)*
 - [ ] Migration: districts, administrative_areas, schools, school_registration_requests, users,
