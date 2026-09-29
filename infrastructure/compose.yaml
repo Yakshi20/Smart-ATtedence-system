@@ -1,0 +1,36 @@
+# Local and CI dependencies. OCI-standard so it runs under podman compose or docker compose.
+# Development credentials only; production uses a secrets manager.
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    container_name: smartschool-pg
+    environment:
+      POSTGRES_USER: smartschool
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: smartschool_dev
+    ports:
+      - '55432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Durability is deliberately traded for speed. This instance holds only development and
+    # throwaway test data, and the test harness creates a fresh database per test file — on
+    # this filesystem an fsync-ing CREATE DATABASE cost ~23s, which made the suite unusable.
+    # NEVER apply these flags to an environment holding real school data.
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - max_connections=200
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U smartschool -d smartschool_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pgdata:

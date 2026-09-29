@@ -290,3 +290,49 @@ These are the ones where I should not just pick for you.
   service and `00 §8` says to ask before introducing one. Until you choose one, I will build
   against an `SmsProvider` interface with a **logging dev implementation** — OTPs appear in the
   server log, never in the API response. Confirm that is acceptable for now.
+
+---
+
+## Answers received (2026-09-29)
+
+### Q1 → **Per period / per subject.**
+
+Consequences:
+
+- **D-01 is no longer a blocker.** With a subject-linked register,
+  `teacher_assignments` → `class_subjects` authorizes attendance directly; the
+  class-subject/section mismatch disappears.
+- `attendance_sessions.class_subject_id` is **NOT NULL**. There is no section-level
+  daily register at launch.
+- Uniqueness becomes `UNIQUE(section_id, date, class_subject_id, session_ordinal)`.
+  `session_ordinal` is retained because a subject can legitimately occupy two periods
+  in one day (D-10).
+- `section_teachers` / class-teacher (proposed under D-01) is **deferred**. Nothing in
+  the launch scope needs it: subject teachers mark, and the principal approves
+  corrections. Building it now would be speculative scaffolding.
+- Accepted cost: a pupil generates one attendance record per period, so record volume
+  scales with the timetable. Reporting must aggregate periods into a day before showing a
+  parent an attendance percentage, and "was my child in school today" is now a derived
+  question rather than a stored fact. Percentages will therefore be defined over
+  **periods**, and the API will label them as such so clients cannot present a
+  period-based figure as a day-based one.
+
+### Q2 → **Platform staff only approve school registrations.**
+
+Consequences:
+
+- Approval authority is a single platform permission; no delegation path in Slice 1.
+- **D-03 (area-level officer scope) is deferred** out of Slice 1. District/area membership
+  is still modelled for later reporting, but no approval logic depends on it.
+- D-04 (support access grants) becomes more pressing, not less: platform staff now
+  necessarily touch the onboarding path, so the boundary between "may approve a school"
+  and "may read that school's academic data" must be enforced rather than assumed.
+  Approval permission grants **no** academic read access.
+
+### Q3 → Proceeding on the recommended default
+District holidays bind schools; a school may add holidays but not remove district ones.
+Deferred to the calendar slice; revisit before building it.
+
+### Q4 → Proceeding on the recommended default
+`SmsProvider` interface with a dev implementation that logs the OTP server-side. No paid SMS
+gateway will be introduced without asking.

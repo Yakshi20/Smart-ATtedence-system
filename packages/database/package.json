@@ -1,0 +1,30 @@
+{
+  "name": "@smart-school/database",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx src/cli/migrate.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.6",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@smart-school/config": "workspace:*",
+    "@swc/core": "^1.13.5",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.18.6",
+    "@types/pg": "^8.15.5",
+    "drizzle-kit": "^0.31.5",
+    "jest": "^30.2.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  }
+}

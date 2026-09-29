@@ -19,7 +19,7 @@ tests have actually been executed and the output recorded in the PR.
       auth_identities, school_memberships, admin_scope_memberships, permissions, role_permissions,
       membership_permission_grants, user_sessions, audit_logs
 - [ ] Public, rate-limited `POST /schools/registration-requests` (D-18)
-- [ ] Approval workflow → creates school + unique school code + first admin membership, in one transaction
+- [ ] Approval workflow (platform permission only, Q2) → creates school + unique school code + first admin membership, in one transaction
 - [ ] Staff login, refresh-token rotation with reuse detection, logout, `/me`, `/me/schools`
 - [ ] Policy layer + permission registry
 - [ ] **Tests:** unapproved school cannot use academic endpoints · school code is unique ·
@@ -28,11 +28,10 @@ tests have actually been executed and the output recorded in the PR.
 
 ## Slice 2 — Academic structure and enrolment
 - [ ] Migration: academic_years, grades, sections, subjects, class_subjects, students,
-      enrollments (with effective dates, D-12), teacher_profiles, teacher_assignments,
-      section_teachers (D-01)
+      enrollments (with effective dates, D-12), teacher_profiles, teacher_assignments
 - [ ] CRUD for years / grades / sections / subjects, scoped to the caller's school
 - [ ] Student creation and enrolment; `UNIQUE(school_id, student_number)`
-- [ ] Teacher assignment (subject) and class-teacher assignment (section)
+- [ ] Teacher assignment to class-subject (class-teacher deferred, see Q1)
 - [ ] Composite FKs proving cross-school links are unrepresentable
 - [ ] **Tests:** cross-school section enrolment rejected at the database level ·
       duplicate student number rejected · overlapping active enrolments rejected ·
@@ -49,9 +48,10 @@ tests have actually been executed and the output recorded in the PR.
 
 ## Slice 4 — Attendance
 - [ ] Migration: attendance_statuses (per-school config), attendance_sessions
-      (session_ordinal + optional class_subject, D-10), attendance_records,
+      (class_subject_id NOT NULL + session_ordinal, per-period per Q1), attendance_records,
       attendance_change_log
-- [ ] Open session → roster resolved from enrolments covering that date (D-12)
+- [ ] Open session for an assigned class-subject → roster resolved from enrolments
+      covering that date (D-12)
 - [ ] Transactional submission, idempotency key, retry-safe
 - [ ] Correction workflow: old value, new value, reason, actor, timestamp
 - [ ] Student self-read and parent read of linked child only
