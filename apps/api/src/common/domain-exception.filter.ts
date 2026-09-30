@@ -11,6 +11,7 @@ import {
   DomainError,
   ErrorCode,
   httpStatusForErrorCode,
+  RateLimitedError,
 } from '@smart-school/shared';
 import { requestIdOf } from './request-context';
 
@@ -47,6 +48,9 @@ export class DomainExceptionFilter implements ExceptionFilter {
     const body: ApiErrorBody = {
       error: { code, message, requestId, ...(fields ? { fields } : {}) },
     };
+    if (exception instanceof RateLimitedError) {
+      res.setHeader('Retry-After', String(exception.retryAfterSeconds));
+    }
     res.status(status).json(body);
   }
 

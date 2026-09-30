@@ -7,14 +7,19 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
-    "test": "jest"
+    "test": "jest",
+    "platform-admin:create": "tsx src/cli/create-platform-admin.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
+    "@node-rs/argon2": "^2.2.1",
     "@smart-school/database": "workspace:*",
+    "@smart-school/permissions": "workspace:*",
     "@smart-school/shared": "workspace:*",
+    "drizzle-orm": "^0.44.7",
+    "jose": "^5.10.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4.1.11"

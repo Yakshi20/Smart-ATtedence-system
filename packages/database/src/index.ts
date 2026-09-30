@@ -1,4 +1,5 @@
 export * from './client';
+export * from './errors';
 export * from './migrator';
 export * as schema from './schema';
 

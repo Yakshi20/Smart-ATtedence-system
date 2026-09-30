@@ -336,3 +336,16 @@ Deferred to the calendar slice; revisit before building it.
 ### Q4 → Proceeding on the recommended default
 `SmsProvider` interface with a dev implementation that logs the OTP server-side. No paid SMS
 gateway will be introduced without asking.
+
+**Amended 2026-09-30 (owner instruction for Slice 3): OTP values are never logged.** The dev
+adapter keeps messages in process memory only, readable solely by code holding the instance
+(the test harness); it logs a masked recipient and never the body, and refuses to start when
+`NODE_ENV=production`. `SMS_PROVIDER=none` disables OTP login with an honest `503`. Consequence:
+until a provider (or a vendor sandbox) is chosen, the parent login can be exercised end to end
+only through the automated tests, not by hand against a running dev server.
+
+### D-08 → resolved in Slice 3
+`POST /auth/login` keeps its `method` discriminator for single-step credentials. Phone login is
+two-step (request, then verify), so it lives at `POST /auth/otp/request` and
+`POST /auth/otp/verify` as `06 §1` lists, and `/auth/otp/verify` returns the same token pair as
+`/auth/login`. No `phone_otp` variant was added to the login union.

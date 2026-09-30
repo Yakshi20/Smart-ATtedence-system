@@ -34,3 +34,9 @@ export function createDatabase(connectionString: string, overrides: PoolConfig =
     },
   };
 }
+
+/** The handle passed to a `db.transaction()` callback. */
+export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/** Anything that can run a query: the pooled database or an open transaction. */
+export type Executor = Database | Transaction;

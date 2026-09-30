@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createTestDatabase, type TestDatabase } from '@smart-school/database';
+import type { AppOverrides } from '../app.module';
 import { createApp } from '../bootstrap';
 import { loadConfig, type AppConfig } from '../config/env';
 
@@ -16,7 +17,7 @@ export interface TestApp {
  * Uses `createApp`, not a hand-assembled module, so the filter/pipe/middleware stack under
  * test is the one production uses.
  */
-export async function createTestApp(label: string): Promise<TestApp> {
+export async function createTestApp(label: string, overrides: AppOverrides = {}): Promise<TestApp> {
   const database = await createTestDatabase(label);
 
   const config = loadConfig({
@@ -26,7 +27,7 @@ export async function createTestApp(label: string): Promise<TestApp> {
     JWT_ACCESS_SECRET: 'test-secret-that-is-long-enough-to-pass-validation',
   });
 
-  const app = await createApp(config);
+  const app = await createApp(config, overrides);
   await app.init();
 
   return {

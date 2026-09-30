@@ -1,5 +1,6 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import type { DatabaseHandle } from '@smart-school/database';
+import { Public } from '../auth/principal';
 import { DATABASE_HANDLE } from '../database/database.module';
 
 interface HealthResponse {
@@ -18,6 +19,7 @@ export class HealthController {
    * orchestrator's readiness check and a human's diagnostic both get a usable answer.
    * Deliberately unauthenticated and deliberately free of version or schema detail.
    */
+  @Public()
   @Get('health')
   async health(): Promise<HealthResponse> {
     try {

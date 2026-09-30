@@ -2,9 +2,10 @@
   "name": "smart-school",
   "version": "0.0.0",
   "private": true,
+  "packageManager": "pnpm@11.13.0",
   "engines": {
     "node": ">=22.0.0",
-    "pnpm": ">=10.0.0"
+    "pnpm": ">=11.0.0"
   },
   "scripts": {
     "db:up": "podman compose -f infrastructure/compose.yaml up -d || docker compose -f infrastructure/compose.yaml up -d",
