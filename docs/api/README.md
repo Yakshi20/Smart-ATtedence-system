@@ -573,3 +573,124 @@ must not be presented as a daily attendance percentage. Correction reasons are n
 
 **Students:** there is no student self-view yet — students have no login linkage
 (`students.user_id`, D-05, is not built), so there is no identity to authorize against.
+
+---
+
+# Slice 5 — Attendance reports
+
+All reports are **read-only and derived on request** from registers, records and enrolments, so a
+correction is reflected immediately and there are no stored totals to go stale. Nothing is
+cached. Every metric is counted in **periods**; there is no daily attendance rate.
+
+## Definitions (returned as `definitions` in every report)
+
+| Term | Meaning |
+|---|---|
+| eligible student-period | a register (section, date, period) × a student whose live enrolment in **that** section covers the date |
+| marked | eligible and has a record: `present`, `absent`, `late`, `approved_leave` |
+| unmarked | eligible, no record (register still open, or pupil enrolled later with a backdated start). **Never counted as absent.** |
+| `attendanceRate` | `(present + late) / marked` — `approved_leave` **is** in the denominator (same formula as Slice 4); `null` when marked = 0 |
+| `markingCompleteness` | `marked / eligible`; `null` when eligible = 0 |
+| `registers.submissionRate` | `submitted / opened` registers in the range. **Only registers that were actually opened are counted. It is not the share of timetabled periods that should have had a register** — no timetable exists yet, so a register that was never opened is invisible to every metric (and never produces absences). |
+| `daysWithRegisters`, `daysWithAnyMark` | distinct dates with ≥ 1 counted register / ≥ 1 marked period. Day counts only — no daily rate. |
+
+A pupil who changes section mid-range is counted in each section only for the dates they were
+in it (enrolments cannot overlap). At class and school level, `distinctStudents` counts each
+pupil once — it is not the sum of section rows.
+
+## Query parameters
+
+`from`, `to`: `YYYY-MM-DD`, `from ≤ to`, at most 366 days (`400` otherwise). Optional filters are
+re-resolved inside the caller's school — another school's id is `404`, as is an unknown one:
+
+| Filter | Validation |
+|---|---|
+| `academicYearId` | in the school (`404`); must overlap the range (`422`) |
+| `gradeId` | in the school (`404`) |
+| `sectionId` | in the school (`404`); must belong to `academicYearId` / `gradeId` when given (`422`); teachers: must have an active assignment in it (`403`) |
+| `groupBy` (sections report) | `section` (default) or `period` |
+
+## Endpoints
+
+| Route | Who |
+|---|---|
+| `GET /schools/:schoolId/attendance/reports/sections` | `school.attendance.mark` — admins: all registers; teachers: **only registers of class-subjects they are actively assigned to** |
+| `GET /schools/:schoolId/attendance/reports/sections.csv` | same |
+| `GET /schools/:schoolId/attendance/reports/summary` | `school.attendance.read_all` (school admins) |
+| `GET /schools/:schoolId/attendance/reports/summary.csv` | same |
+| `GET /schools/:schoolId/attendance/reports/students/:studentId` | admins: any student of the school; teachers: only students **currently** in a section they actively teach (`404` otherwise), limited to their class-subjects |
+| `GET /schools/:schoolId/students/:studentId/attendance` | admins (Slice 4 route) — now returns the same student report |
+| `GET /parents/me/children/:studentId/attendance` | verified guardian link, re-checked per request — same student report, own child only |
+
+Teachers lose access on the next request when an assignment ends. Other schools, the platform
+admin and parents on school routes get `404`. Reports never rank sections and never list
+individual children; rows are ordered by class, then section name, then period.
+
+### Sections / summary response
+
+```jsonc
+{
+  "included": { "from": "…", "to": "…", "academicYearId": null, "gradeId": null, "sectionId": null,
+                "registers": "all registers in the school" },   // or "registers of class-subjects you are actively assigned to"
+  "rows": [ ReportRow ],                                          // sections report
+  // summary instead returns: "total": ReportRow, "grades": [ReportRow], "sections": [ReportRow]
+  "definitions": { … }
+}
+```
+
+`ReportRow`:
+```jsonc
+{
+  "gradeNumber": 5, "sectionId": "…", "sectionName": "A", "period": null,   // nulls at higher levels
+  "registers": { "opened": 3, "submitted": 2, "open": 1, "submissionRate": 0.6667, "daysWithRegisters": 2 },
+  "studentPeriods": { "eligible": 9, "marked": 6, "unmarked": 3, "attended": 4,
+                      "byStatus": { "present": 3, "absent": 1, "late": 1, "approved_leave": 1 },
+                      "markingCompleteness": 0.6667 },
+  "attendanceRate": 0.6667,
+  "distinctStudents": 4,
+  "daysWithAnyMark": 1
+}
+```
+
+The school summary's total, class and section rows are read from **one database snapshot**, so
+they always agree.
+
+### Student report (admins, teachers, parents)
+
+```jsonc
+{
+  "from": "…", "to": "…",
+  "items": [ { "date": "…", "period": 1, "gradeNumber": 5, "sectionName": "A",      // class/section ON THAT DATE
+               "subjectCode": "MATH", "subjectName": "Mathematics",
+               "status": "late",            // null = unmarked
+               "corrected": false } ],
+  "summary": { "basis": "periods", "eligiblePeriods": 3, "periodsMarked": 3, "unmarkedPeriods": 0,
+               "attendedPeriods": 2, "byStatus": { … }, "attendanceRate": 0.6667,
+               "markingCompleteness": 1, "daysWithRegisters": 2, "daysWithAnyMark": 2 },
+  "definitions": { … }
+}
+```
+
+**Change from Slice 4** (no released client depends on it yet): `items` now include **unmarked**
+eligible periods with `status: null`, and each item carries `gradeNumber` and `sectionName`.
+Slice 4 summary fields keep their names and meaning; `eligiblePeriods`, `unmarkedPeriods`,
+`markingCompleteness`, `daysWithRegisters` and `daysWithAnyMark` are added. No classmate's data
+and no correction reason is ever included.
+
+## CSV export
+
+`sections.csv` and `summary.csv` run exactly the same authorization, filters and scoping as the
+JSON reports. **Aggregate rows only** — no student names, numbers or ids. UTF-8 with BOM, CRLF,
+`Content-Disposition: attachment`, `Cache-Control: no-store`.
+
+Columns: `range_from, range_to, registers_included | level, grade_number, section_name, [period],`
+then `registers_opened, registers_submitted, registers_open, register_submission_rate,
+eligible_student_periods, marked_student_periods, unmarked_student_periods, present, absent, late,
+approved_leave, attended_student_periods, attendance_rate, marking_completeness, distinct_students,
+days_with_registers, days_with_any_mark`. `summary.csv` has a `level` column (`school` / `class` /
+`section`) instead of `registers_included`.
+
+**Formula injection:** any text cell whose first non-space character is `= + - @`, or that starts
+with a tab or carriage return, is prefixed with `'` (section names are school-entered free text).
+Each successful export writes an `attendance_report.exported` audit row (report, range, filters,
+row count, scope); denied requests write nothing.

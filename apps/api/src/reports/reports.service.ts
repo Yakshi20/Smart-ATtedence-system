@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import { schema, type Database } from '@smart-school/database';
 import { Permission, roleHasPermission, ScopeType } from '@smart-school/permissions';
@@ -10,7 +10,7 @@ import { writeAudit } from '../audit/audit';
 import type { RequestMeta } from '../common/request-meta';
 import { DATABASE } from '../database/database.module';
 import { toCsv, type CsvValue } from './csv';
-import { aggregate, type AggregateRow, type GroupLevel, type ReportFilter } from './report-sql';
+import { aggregate, reportTransaction, type AggregateRow, type ReportFilter } from './report-sql';
 
 export interface ReportRow {
   gradeNumber: number | null;
@@ -71,6 +71,8 @@ type SectionQuery = {
  */
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
+
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly academicAccess: AcademicAccess,
@@ -78,7 +80,7 @@ export class ReportsService {
 
   async sectionReport(scope: SchoolScope, q: SectionQuery): Promise<{ included: Included; rows: ReportRow[]; definitions: typeof ATTENDANCE_REPORT_DEFINITIONS }> {
     const filter = await this.resolveFilter(scope, q);
-    const rows = await aggregate(this.db, filter, q.groupBy);
+    const rows = this.checked(await reportTransaction(this.db, (tx) => aggregate(tx, filter, q.groupBy)));
     return { included: this.included(scope, q), rows: rows.map(toReportRow), definitions: ATTENDANCE_REPORT_DEFINITIONS };
   }
 
@@ -94,16 +96,19 @@ export class ReportsService {
     definitions: typeof ATTENDANCE_REPORT_DEFINITIONS;
   }> {
     const filter = await this.resolveFilter(scope, q);
-    // Three aggregates over the same CTE; distinct students are counted per level, never summed,
-    // so a pupil who moved between sections is one pupil at class and school level.
-    const [total, grades, sections] = await Promise.all(
-      (['total', 'grade', 'section'] as GroupLevel[]).map((level) => aggregate(this.db, filter, level)),
-    );
+    // Three aggregates from ONE snapshot, so the school total always equals what its class and
+    // section rows describe. Distinct students are counted per level, never summed, so a pupil
+    // who moved between sections is one pupil at class and school level.
+    const { total, grades, sections } = await reportTransaction(this.db, async (tx) => ({
+      total: this.checked(await aggregate(tx, filter, 'total')),
+      grades: this.checked(await aggregate(tx, filter, 'grade')),
+      sections: this.checked(await aggregate(tx, filter, 'section')),
+    }));
     return {
       included: this.included(scope, q),
-      total: toReportRow(total![0]!),
-      grades: grades!.map(toReportRow),
-      sections: sections!.map(toReportRow),
+      total: toReportRow(total[0]!),
+      grades: grades.map(toReportRow),
+      sections: sections.map(toReportRow),
       definitions: ATTENDANCE_REPORT_DEFINITIONS,
     };
   }
@@ -160,6 +165,20 @@ export class ReportsService {
   }
 
   // ------------------------------------------------------------------ helpers
+
+  /**
+   * marked > eligible is impossible while the 0004 invariants hold (see report-sql.ts). If it ever
+   * happens it is logged as an integrity error and the figures are returned as computed — never
+   * silently clamped into plausible-looking numbers.
+   */
+  private checked(rows: AggregateRow[]): AggregateRow[] {
+    for (const r of rows) {
+      if (r.marked > r.eligible) {
+        this.logger.error({ event: 'attendance_report_integrity', sectionId: r.sectionId, marked: r.marked, eligible: r.eligible });
+      }
+    }
+    return rows;
+  }
 
   private schoolWide(scope: SchoolScope): boolean {
     return roleHasPermission(ScopeType.SCHOOL, scope.role, Permission.SCHOOL_ATTENDANCE_READ_ALL);

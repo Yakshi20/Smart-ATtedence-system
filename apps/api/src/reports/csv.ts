@@ -24,5 +24,5 @@ export function csvCell(value: CsvValue): string {
  */
 export function toCsv(header: readonly string[], rows: readonly CsvValue[][]): string {
   const lines = [header.map(csvCell).join(','), ...rows.map((r) => r.map(csvCell).join(','))];
-  return `﻿${lines.join('\r\n')}\r\n`;
+  return `\uFEFF${lines.join('\r\n')}\r\n`;
 }

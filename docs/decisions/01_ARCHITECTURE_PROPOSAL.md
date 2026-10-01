@@ -478,3 +478,76 @@ transfer-outs all pass through it whatever the code path. The API maps it to `40
 `academic/roster.ts` is now the one definition of "who is in this section on this date" (D-13).
 The Slice 2 section-roster endpoint was refactored onto it, and the 58 academic tests still pass.
 Attendance uses the same function for opening, displaying, submitting and correcting registers.
+
+## 12. Slice 5 as built (2026-10-01)
+
+Attendance reports. API: [docs/api/README.md](../api/README.md) § Slice 5. **No migration.**
+`0001`–`0004` are untouched and still match the applied ledger.
+
+### Decisions (owner-approved defaults)
+
+1. **No daily attendance rate.** Only day counts (`daysWithRegisters`, `daysWithAnyMark`). Every
+   metric is labelled `basis: "periods"`.
+2. **Formula unchanged from Slice 4.** `attendanceRate = (present + late) / marked`, with
+   `approved_leave` in the denominator. One shared definition is used by every report and the parent
+   view.
+3. **CSV holds aggregate rows only.** There are no names, numbers or ids, cells are escaped against
+   formula injection, and each export is audited.
+4. **Register completion counts only opened registers.** `submissionRate = submitted / opened`.
+   It is **not** timetable coverage: without timetables, a register that was never opened is
+   invisible. It never produces absences, but it is also not reported as missing.
+5. **Teacher student reports** cover only students currently in a section the teacher actively
+   teaches, and only that teacher's class-subjects.
+
+### Shape
+
+`reports/report-sql.ts` builds every aggregate from one parameterised query (all request values are
+bound parameters):
+
+```text
+scoped_sessions   registers in school + range + filters (+ teacher's active class-subjects)
+reg_eligible      per register, LATERAL count of enrolments covering it        (enrollments_section_dates_idx)
+reg_marks         per register, LATERAL status counts of its records            (attendance_records_session_student_key)
+per_register      one row per register  →  GROUP BY total | grade | section | period
+st                distinct students per group, deduplicated before counting
+```
+
+`academic/roster.ts`, `reg_eligible` and the student history all use the same coverage rule. As a
+result the roster, a register's counts and the reports always agree.
+
+### Performance findings (measured, not assumed)
+
+The figures come from a throwaway test database seeded with about 302k records (21 sections,
+840 pupils, 60 days × 6 periods), using `EXPLAIN (ANALYZE)` plus uninstrumented timings. Full numbers
+are in the Slice 5 report.
+
+- **JIT was the largest cost.** PostgreSQL JIT-compiled 99 functions (≈ 2.4 s) for a query whose
+  execution took ≈ 1 s. Report queries therefore run in `reportTransaction`: a
+  `READ ONLY, REPEATABLE READ` transaction with `SET LOCAL jit = off`. The setting is scoped to that
+  transaction and no server setting changes. As a side benefit, the school summary's total, class
+  and section aggregates come from one snapshot and always agree.
+- **Cost now scales with the range, not with history.** The first version scanned all of
+  `attendance_records` even for a 7-day range. The per-register `LATERAL` lookups use existing
+  indexes, so a 7-day summary takes ~0.15 s versus ~1 s for 60 days.
+- **No new index.** Every lookup path uses an existing index. The remaining cost is genuine
+  aggregation over the rows in range.
+- **Marked ⊆ eligible is an invariant enforced by the database, not re-checked per record.**
+  Re-checking each record's enrolment coverage in the query cost more than doubling the 60-day
+  summary. The guarantee already comes from `0004`: a record can only be inserted against a live
+  enrolment covering its date, that enrolment can never be voided or ended on or before the date,
+  and neither row's placement is mutable. The services log `attendance_report_integrity` if a row
+  ever shows marked > eligible, and return the figures as computed rather than clamping them. A test
+  forces the condition by disabling the trigger and checks the alarm fires.
+- **Ordering.** The first version ordered rows by grouping keys that included the section UUID,
+  so sections sorted randomly within a class. Rows are now ordered explicitly by class, section
+  name and period, never by a metric and never by an id.
+
+### Known limits
+
+- The **school-wide summary over long ranges is ~1–2 s per 60 days** on development hardware, so a
+  full-year summary will take several seconds. A pre-aggregated per-register summary table (or a
+  materialized view refreshed on submit/correct) is the next step if schools need instant year
+  views. Per the brief, totals are not duplicated yet.
+- **No small-cell suppression**: a section with one pupil shows that pupil's period counts in
+  aggregate form, including in the CSV.
+- **Elective split-periods** remain unsupported (§11).

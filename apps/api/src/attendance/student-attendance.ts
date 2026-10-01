@@ -1,6 +1,20 @@
-import type { Executor } from '@smart-school/database';
+import { Logger } from '@nestjs/common';
+import type { Database } from '@smart-school/database';
 import { ATTENDANCE_REPORT_DEFINITIONS, ratio, type AttendanceStatus } from '@smart-school/shared';
-import { aggregate, studentPeriodsQuery } from '../reports/report-sql';
+import { aggregate, reportTransaction, studentPeriodsQuery } from '../reports/report-sql';
+
+const logger = new Logger('StudentAttendance');
+
+interface PeriodRow extends Record<string, unknown> {
+  date: string;
+  period: number;
+  section_name: string;
+  grade_number: number;
+  subject_code: string;
+  subject_name: string;
+  status: AttendanceStatus | null;
+  revision: number;
+}
 
 export interface StudentAttendanceEntry {
   date: string;
@@ -51,22 +65,20 @@ export interface StudentAttendanceReport {
  * view passes `teacherMembershipId`, which limits it to their actively assigned class-subjects.
  */
 export async function studentAttendance(
-  executor: Executor,
+  db: Database,
   filter: { schoolId: string; studentId: string; from: string; to: string; teacherMembershipId?: string | undefined },
 ): Promise<StudentAttendanceReport> {
-  const { rows } = await executor.execute<{
-    date: string;
-    period: number;
-    section_name: string;
-    grade_number: number;
-    subject_code: string;
-    subject_name: string;
-    status: AttendanceStatus | null;
-    revision: number;
-  }>(studentPeriodsQuery(filter));
-
-  const [totals] = await aggregate(executor, filter, 'total');
-  const t = totals!;
+  // History and summary from one snapshot, so the counts always match the listed periods.
+  const { rows, totals } = await reportTransaction(db, async (tx) => {
+    const history = await tx.execute<PeriodRow>(studentPeriodsQuery(filter));
+    const [total] = await aggregate(tx, filter, 'total');
+    return { rows: history.rows, totals: total! };
+  });
+  const t = totals;
+  if (t.marked > t.eligible) {
+    // Impossible while the 0004 invariants hold; surfaced loudly rather than clamped.
+    logger.error({ event: 'attendance_report_integrity', scope: 'student', marked: t.marked, eligible: t.eligible });
+  }
   const attendedPeriods = t.present + t.late;
 
   return {

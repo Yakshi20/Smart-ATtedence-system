@@ -417,7 +417,10 @@ describe('enrolment history keeps recorded attendance valid', () => {
 
     await adminA.post(`/enrollments/${e}/transfer`, { sectionId: ids.s5b, effectiveDate: day(-4) }).expect(201);
     const history = (await adminA.get(`/students/${pupil.id}/attendance`, { from: day(-10), to: today })).body;
-    expect(history.items).toEqual([expect.objectContaining({ date: day(-5), period: 11, status: 'present' })]);
+    // Slice 5: the history lists every eligible period; unmarked ones carry status null.
+    expect(history.items.filter((i: { status: string | null }) => i.status !== null)).toEqual([
+      expect.objectContaining({ date: day(-5), period: 11, status: 'present', gradeNumber: 5, sectionName: 'A' }),
+    ]);
     const register = (await adminA.get(`/attendance/sessions/${s.body.id}`)).body.register;
     expect(register.map((r: { studentId: string }) => r.studentId)).toContain(pupil.id);
   });
@@ -449,11 +452,18 @@ describe('parents', () => {
     const res = await childAttendance(parent, ids.k1);
     expect(res.status).toBe(200);
     expect(res.body.summary.basis).toBe('periods');
-    expect(res.body.summary.periodsMarked).toBe(res.body.items.length);
+    // Slice 5: items include unmarked eligible periods (status null); counts agree with them.
+    const marked = res.body.items.filter((i: { status: string | null }) => i.status !== null);
+    expect(res.body.summary.periodsMarked).toBe(marked.length);
+    expect(res.body.summary.eligiblePeriods).toBe(res.body.items.length);
+    expect(res.body.summary.unmarkedPeriods).toBe(res.body.items.length - marked.length);
     expect(res.body.items.length).toBeGreaterThan(0);
     expect(res.body.items.some((i: { corrected: boolean }) => i.corrected)).toBe(true);
     expect(JSON.stringify(res.body)).not.toMatch(/reason|roll call|headmaster/i);
-    expect(Object.keys(res.body.items[0]).sort()).toEqual(['corrected', 'date', 'period', 'status', 'subjectCode', 'subjectName']);
+    // Only the child's own periods: no classmate names or ids in any item.
+    expect(Object.keys(res.body.items[0]).sort()).toEqual(
+      ['corrected', 'date', 'gradeNumber', 'period', 'sectionName', 'status', 'subjectCode', 'subjectName'],
+    );
   });
 
   test('another child, an unverified link, or a bad range get nothing', async () => {

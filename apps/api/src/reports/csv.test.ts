@@ -24,6 +24,6 @@ test('quotes commas, quotes and newlines; leaves plain text and numbers alone', 
 
 test('documents start with a BOM and use CRLF', () => {
   const out = toCsv(['a', 'b'], [[1, 'x']]);
-  expect(out.startsWith('﻿')).toBe(true);
-  expect(out).toBe('﻿a,b\r\n1,x\r\n');
+  expect(out.startsWith('\uFEFF')).toBe(true);
+  expect(out).toBe('\uFEFFa,b\r\n1,x\r\n');
 });

@@ -3,10 +3,11 @@
 Multi-tenant school management platform for government and private schools in Karnataka,
 India, initially covering Classes 1–7.
 
-**Status: Slices 1–4 complete** — school registration and platform approval, staff login with
+**Status: Slices 1–5 complete** — school registration and platform approval, staff login with
 refresh-token rotation, school-scoped access control, academic years, classes, sections,
 subjects, students, enrolment history, teacher assignments, guardian linking, parent phone
-(OTP) login, and per-period attendance with corrections and a parent view. See [docs/decisions/02_BACKLOG.md](docs/decisions/02_BACKLOG.md)
+(OTP) login, per-period attendance with corrections, and attendance reports (school, class,
+section, student, parent) with CSV export. See [docs/decisions/02_BACKLOG.md](docs/decisions/02_BACKLOG.md)
 for what is built and what is next, and [docs/api/README.md](docs/api/README.md) for the API.
 
 ## Read these first

@@ -168,7 +168,30 @@ to `smartschool_dev`, and a second run was a no-op; all four file checksums matc
 - [ ] Parent notifications after submission (queue, Slice 5+)
 - [ ] Elective split-periods if a school needs them (relax the slot key)
 
-## Slice 5+ — Deferred
+## Slice 5 — Attendance reports  ✅ complete (uncommitted on top of local commit 4eef0fa, awaiting review)
+- [x] Student report: per-period history incl. unmarked, historical class/section, counts,
+      attendance rate, marking completeness, day counts (no daily rate)
+- [x] Section / class report (by section or period) and school summary (admins), one snapshot
+- [x] Teacher scope: actively assigned class-subjects only; current students only for student reports
+- [x] Parent view extended (same report, verified link, re-checked per request)
+- [x] CSV export of aggregate rows: formula-injection escaping, same authorization, audited
+- [x] **No migration** — read-only derived queries; `EXPLAIN ANALYZE` on ~302k seeded records
+      showed every lookup path already indexed; JIT disabled per report transaction
+- [x] **Tests:** hand-counted section, class and school totals · present/absent/late/leave and
+      unmarked · missing register ≠ absence · zero denominators → null · section transfer
+      counted once at class level, historical section per period · teacher scope (incl. mutation
+      test) and revocation of assignment · cross-school 404 · parent verified/unverified/revoked ·
+      filter validation and 366-day cap · CSV escaping, columns, no names, authorization, audit ·
+      corrections reflected immediately · integrity alarm when the marked ⊆ eligible invariant is
+      broken
+
+### Slice 5 follow-ups
+- [ ] Pre-aggregated per-register totals (or materialized view) if full-year summaries must be instant
+- [ ] Small-cell suppression policy for very small sections (privacy review)
+- [ ] Timetable-based "expected registers" once timetables exist (true register completion)
+- [ ] Daily attendance rate, if ever wanted, with an explicit day definition
+
+## Slice 6+ — Deferred
 Timetables · homework and materials · calendar with precedence (D-16) · exams, marks,
 publication, report cards · notifications and queue · imports/exports · district portal ·
 RLS · i18n QA · accessibility · load testing.
