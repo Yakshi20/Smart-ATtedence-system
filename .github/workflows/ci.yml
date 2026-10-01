@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: smartschool
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: smartschool_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smartschool"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://smartschool:ci-password@127.0.0.1:5432/smartschool_ci
+      TEST_DATABASE_ADMIN_URL: postgresql://smartschool:ci-password@127.0.0.1:5432/postgres
+      # Test-only value. Real secrets live in the secrets manager, never in CI config.
+      JWT_ACCESS_SECRET: ci-only-secret-value-at-least-32-characters-long
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      # Build precedes typecheck and test because workspace packages are consumed via their
+      # compiled entry points, the same way a deployed artifact consumes them.
+      - name: Build
+        run: pnpm -r build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Migrations apply to an empty database
+        run: pnpm db:migrate
+
+      - name: Migrations are idempotent
+        run: pnpm db:migrate
+
+      - name: Test
+        run: pnpm test

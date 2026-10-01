@@ -1,0 +1,11 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Native binaries these build tools need. Every other package's install scripts stay
+# blocked, which is the point: an install script is arbitrary code execution.
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  '@parcel/watcher': true
+  unrs-resolver: true

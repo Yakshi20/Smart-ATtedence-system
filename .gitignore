@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.tsbuildinfo
+
+# Secrets — never commit real values
+.env
+.env.*
+!.env.example
+
+# Local tooling
+.DS_Store
+*.log
+.pgdata/
